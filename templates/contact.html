@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Contact Owner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="card">
+    <h2>🚗 {{ vehicle }}</h2>
+
+    <p>Contact Vehicle Owner</p>
+
+    <a href="tel:+91{{ call_number }}">
+        <button class="call">Call</button>
+    </a>
+
+    <a href="https://wa.me/91{{ whatsapp_number }}">
+        <button class="whatsapp">WhatsApp</button>
+    </a>
+
+    <a href="sms:+91{{ call_number }}">
+        <button class="sms">SMS</button>
+    </a>
+</div>
+
+</body>
+</html>

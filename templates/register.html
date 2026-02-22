@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register Vehicle</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="card">
+    <h2>🚗 Vehicle Registration</h2>
+
+{% if message %}
+ <div class="alert">{{ message }}</div>
+{% endif %}
+
+    <form method="POST" action="/generate">
+        <input type="text" name="vehicle" placeholder="Vehicle Number" required>
+
+        <input type="text" name="call_number" placeholder="Call Number" required>
+
+        <input type="text" name="whatsapp_number" placeholder="WhatsApp Number (Optional)">
+
+        <button type="submit" class="primary">Generate QR</button>
+    </form>
+</div>
+
+</body>
+</html>

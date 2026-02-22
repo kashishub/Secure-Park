@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vehicle Contact Sticker</title>
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #6a63c7, #8a7dd8);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 3x4 Sticker */
+        .sticker {
+            width: 3in;
+            height: 5in;
+            background: #f5f5f5;
+            margin: 60px auto;
+            border-radius: 30px;
+            border: 3px solid #111;
+            padding: 25px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.25);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .sticker::before {
+        content: "SECURE PARK   SECURE PARK · SECURE PARK · SECURE PARK · SECURE PARK · SECURE PARK · SECURE PARK · SECURE PARK   ";
+        position: absolute;
+        inset: 0;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: 4px;
+        color: rgba(0, 0, 0, 0.089);
+        transform: rotate(-25deg);
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        justify-content: center;
+        text-align: center;
+        line-height: 80px;
+        pointer-events: none;
+    }
+
+        h1 {
+            font-size: 26px;
+            margin-bottom: 5px;
+        }
+
+        .vehicle {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #444;
+            margin-bottom: 15px;
+        }
+
+        /* Rounded QR Container */
+        .qr-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 15px;
+            border-radius: 25px;
+            border: 3px solid #111;
+            background: white;
+            width: fit-content;
+            margin: 0 auto 15px auto;
+            z-index: 100;
+        }
+
+        .qr-container img {
+            width: 170px;
+            border-radius: 15px;
+        }
+
+        .alert {
+            background: #e0e0e0;
+            padding: 12px;
+            border-radius: 18px;
+            font-size: 13px;
+            color: #1b1b1b;
+            margin-top: 10px;
+        }
+
+        .print-btn {
+            margin: 25px auto;
+            display: block;
+            padding: 12px 25px;
+            background: #111;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .print-btn:hover {
+            background: #333;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .print-btn {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="sticker">
+    <h1>🚗 Vehicle Contact System</h1>
+
+    <div class="vehicle">
+        Vehicle: {{ vehicle }}
+    </div>
+
+    <div class="subtitle">
+        Scan to contact vehicle owner
+    </div>
+
+    <div class="qr-container">
+        <img src="{{ qr_image }}">
+    </div>
+
+    <div class="alert">
+        In case of emergency or blocking, please scan this QR.
+    </div>
+</div>
+
+<button class="print-btn" onclick="window.print()">Print Sticker</button>
+
+</body>
+</html>
