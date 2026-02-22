@@ -1,152 +1,147 @@
-from flask import Flask, render_template, request, redirect
-import sqlite3
-import secrets
-import qrcode
 import os
+import secrets
+import psycopg2
+from flask import Flask, render_template, request, redirect, url_for, flash
+import qrcode
 
 app = Flask(__name__)
+app.secret_key = "securepark_secret_key"
 
-# -------------------------------
-# Create database & table if not exists
-# -------------------------------
+
+# ==============================
+# Database Connection
+# ==============================
+
+def get_db_connection():
+    conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
+    return conn
+
+
 def init_db():
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS vehicles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             vehicle TEXT NOT NULL,
             call_number TEXT NOT NULL,
             whatsapp_number TEXT NOT NULL,
-            token TEXT NOT NULL
-        )
+            token TEXT UNIQUE NOT NULL
+        );
     """)
 
     conn.commit()
+    cursor.close()
     conn.close()
+
 
 init_db()
 
-# -------------------------------
-# Registration Page
-# -------------------------------
+
+# ==============================
+# Routes
+# ==============================
+
 @app.route("/")
 def home():
     return render_template("register.html")
 
 
-# -------------------------------
-# Generate QR
-# -------------------------------
 @app.route("/generate", methods=["POST"])
 def generate():
 
-    # ✅ Step 1: Normalize input
     vehicle = request.form["vehicle"].strip().upper()
     call_number = request.form["call_number"].strip()
     whatsapp_number = request.form["whatsapp_number"].strip()
 
-    # If WhatsApp empty → use call number
     if whatsapp_number == "":
         whatsapp_number = call_number
 
-    # ✅ Step 2: Phone validation
-    if not call_number.isdigit() or len(call_number) != 10:
-        return render_template(
-            "register.html",
-            message="Enter a valid 10-digit phone number."
-        )
-
-    token = secrets.token_urlsafe(6)
-
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    # ✅ Step 3: Duplicate logic
-    cursor.execute("""
-        SELECT call_number FROM vehicles WHERE vehicle = ?
-    """, (vehicle,))
+    # Check if vehicle exists
+    cursor.execute(
+        "SELECT call_number FROM vehicles WHERE vehicle = %s",
+        (vehicle,)
+    )
     existing = cursor.fetchone()
 
     if existing:
-        existing_number = existing[0]
+        existing_call = existing[0]
 
         # Case 1: Same vehicle + same number
-        if existing_number == call_number:
+        if existing_call == call_number:
+            cursor.close()
             conn.close()
-            return render_template(
-                "register.html",
-                message="Vehicle already registered."
-            )
+            flash("Vehicle already registered.")
+            return redirect(url_for("home"))
 
-        # Case 2: Vehicle exists but number different
+        # Case 2: Same vehicle + different number
         else:
+            cursor.close()
             conn.close()
-            return render_template(
-                "register.html",
-                message="Vehicle already registered with a different number."
-            )
+            flash("Vehicle already registered with a different number.")
+            return redirect(url_for("home"))
 
-    # Case 3: Vehicle does not exist → Insert
-    cursor.execute("""
+    # Case 3: New vehicle → Insert
+    token = secrets.token_urlsafe(6)
+
+    cursor.execute(
+        """
         INSERT INTO vehicles (vehicle, call_number, whatsapp_number, token)
-        VALUES (?, ?, ?, ?)
-    """, (vehicle, call_number, whatsapp_number, token))
-
-    conn.commit()
-    conn.close()
-
-    # ✅ Step 4: Generate QR
-    qr_url = request.host_url + "v/" + token
-    qr = qrcode.make(qr_url)
-
-    # Create folder if not exists
-    if not os.path.exists("static/qrcodes"):
-        os.makedirs("static/qrcodes")
-
-    qr_path = f"static/qrcodes/{token}.png"
-    qr.save(qr_path)
-
-    return render_template(
-        "qr_result.html",
-        vehicle=vehicle,
-        token=token,
-        qr_image=f"/static/qrcodes/{token}.png"
+        VALUES (%s, %s, %s, %s)
+        """,
+        (vehicle, call_number, whatsapp_number, token)
     )
 
+    conn.commit()
+    cursor.close()
+    conn.close()
 
-# -------------------------------
-# Contact Page (Public)
-# -------------------------------
+    # Generate QR
+    qr_url = request.host_url + "v/" + token
+    img = qrcode.make(qr_url)
+
+    qr_path = f"static/qrcodes/{token}.png"
+    img.save(qr_path)
+
+    return render_template("qr_result.html",
+                           vehicle=vehicle,
+                           token=token,
+                           qr_path=qr_path)
+
+
 @app.route("/v/<token>")
 def contact(token):
 
-    conn = sqlite3.connect("database.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT vehicle, call_number, whatsapp_number
-        FROM vehicles
-        WHERE token = ?
-    """, (token,))
+    cursor.execute(
+        "SELECT vehicle, call_number, whatsapp_number FROM vehicles WHERE token = %s",
+        (token,)
+    )
     data = cursor.fetchone()
 
+    cursor.close()
     conn.close()
 
     if not data:
-        return "Invalid link"
+        return "Invalid or expired QR code."
 
-    return render_template(
-        "contact.html",
-        vehicle=data[0],
-        call_number=data[1],
-        whatsapp_number=data[2]
-    )
+    vehicle, call_number, whatsapp_number = data
+
+    return render_template("contact.html",
+                           vehicle=vehicle,
+                           call_number=call_number,
+                           whatsapp_number=whatsapp_number)
 
 
-# -------------------------------
+# ==============================
 # Run App
-# -------------------------------
+# ==============================
+
 if __name__ == "__main__":
     app.run(debug=True)
