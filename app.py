@@ -1,6 +1,8 @@
 import os
 import secrets
 import psycopg2
+import base64
+from io import BytesIO
 from flask import Flask, render_template, request, redirect, url_for, flash
 import qrcode
 
@@ -61,7 +63,6 @@ def generate():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Check if vehicle exists
     cursor.execute(
         "SELECT call_number FROM vehicles WHERE vehicle = %s",
         (vehicle,)
@@ -71,21 +72,16 @@ def generate():
     if existing:
         existing_call = existing[0]
 
-        # Case 1: Same vehicle + same number
+        cursor.close()
+        conn.close()
+
         if existing_call == call_number:
-            cursor.close()
-            conn.close()
             flash("Vehicle already registered.")
-            return redirect(url_for("home"))
-
-        # Case 2: Same vehicle + different number
         else:
-            cursor.close()
-            conn.close()
             flash("Vehicle already registered with a different number.")
-            return redirect(url_for("home"))
 
-    # Case 3: New vehicle → Insert
+        return redirect(url_for("home"))
+
     token = secrets.token_urlsafe(6)
 
     cursor.execute(
@@ -100,17 +96,24 @@ def generate():
     cursor.close()
     conn.close()
 
-    # Generate QR
-    qr_url = request.host_url + "v/" + token
-    img = qrcode.make(qr_url)
+    # ==========================
+    # Generate QR (IN MEMORY)
+    # ==========================
 
-    qr_path = f"static/qrcodes/{token}.png"
-    img.save(qr_path)
+    qr_url = request.host_url + "v/" + token
+
+    qr = qrcode.make(qr_url)
+
+    buffer = BytesIO()
+    qr.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
 
     return render_template("qr_result.html",
                            vehicle=vehicle,
                            token=token,
-                           qr_path=qr_path)
+                           qr_image=qr_base64)
 
 
 @app.route("/v/<token>")
