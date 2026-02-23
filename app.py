@@ -3,12 +3,10 @@ import secrets
 import psycopg2
 import base64
 from io import BytesIO
-from flask import send_file
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import qrcode
-
 
 
 app = Flask(__name__)
@@ -31,7 +29,6 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # USERS TABLE
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -42,7 +39,6 @@ def init_db():
         );
     """)
 
-    # VEHICLES TABLE (linked to user)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS vehicles (
             id SERIAL PRIMARY KEY,
@@ -92,18 +88,15 @@ def load_user(user_id):
         return User(*user)
     return None
 
+
 # ==============================
-# Home Route
+# Routes
 # ==============================
 
 @app.route("/")
 def home():
     return redirect(url_for("login"))
 
-
-# ==============================
-# Authentication Routes
-# ==============================
 
 @app.route("/register", methods=["GET", "POST"])
 def register_user():
@@ -210,7 +203,7 @@ def dashboard():
             "id": vehicle_id,
             "vehicle": vehicle_number,
             "call_number": call_number,
-            "qr_image": qr_base64,  
+            "qr_image": qr_base64,
             "token": token
         })
 
@@ -218,7 +211,7 @@ def dashboard():
 
 
 # ==============================
-# Add Vehicle (Owner Only)
+# Add Vehicle
 # ==============================
 
 @app.route("/add-vehicle", methods=["POST"])
@@ -234,7 +227,6 @@ def add_vehicle():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 🔒 LIMIT: Max 3 vehicles per owner
     cursor.execute(
         "SELECT COUNT(*) FROM vehicles WHERE user_id = %s",
         (current_user.id,)
@@ -247,7 +239,6 @@ def add_vehicle():
         conn.close()
         return redirect(url_for("dashboard"))
 
-    # Prevent duplicate vehicle globally
     cursor.execute(
         "SELECT id FROM vehicles WHERE vehicle = %s",
         (vehicle,)
@@ -296,7 +287,7 @@ def delete_vehicle(vehicle_id):
 
 
 # ==============================
-# QR Contact Route
+# Contact Route
 # ==============================
 
 @app.route("/v/<token>")
@@ -327,43 +318,44 @@ def contact(token):
 
 
 # ==============================
-# Download Route
+# Download QR Route
 # ==============================
 
-    @app.route("/download-qr/<token>")
-    @login_required
-    def download_qr(token):
+@app.route("/download-qr/<token>")
+@login_required
+def download_qr(token):
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT vehicle FROM vehicles WHERE token = %s AND user_id = %s",
-            (token, current_user.id)
-        )
-        data = cursor.fetchone()
+    cursor.execute(
+        "SELECT vehicle FROM vehicles WHERE token = %s AND user_id = %s",
+        (token, current_user.id)
+    )
+    data = cursor.fetchone()
 
-        cursor.close()
-        conn.close()
+    cursor.close()
+    conn.close()
 
-        if not data:
-            return "Unauthorized", 403
+    if not data:
+        return "Unauthorized", 403
 
-        vehicle = data[0]
+    vehicle = data[0]
 
-        qr_url = request.host_url + "v/" + token
-        qr = qrcode.make(qr_url)
+    qr_url = request.host_url + "v/" + token
+    qr = qrcode.make(qr_url)
 
-        buffer = BytesIO()
-        qr.save(buffer, format="PNG")
-        buffer.seek(0)
+    buffer = BytesIO()
+    qr.save(buffer, format="PNG")
+    buffer.seek(0)
 
-        return send_file(
+    return send_file(
         buffer,
-            mimetype="image/png",
-            as_attachment=True,
-            download_name=f"{vehicle}_QR.png"
-        )
+        mimetype="image/png",
+        as_attachment=True,
+        download_name=f"{vehicle}_QR.png"
+    )
+
 
 # ==============================
 # Run App
