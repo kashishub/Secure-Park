@@ -330,8 +330,8 @@ def contact(token):
 # ==============================
 
     @app.route("/download-qr/<token>")
-@login_required
-def download_qr(token):
+    @login_required
+    def download_qr(token):
 
     conn = get_db_connection()
     cursor = conn.cursor()
