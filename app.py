@@ -346,7 +346,7 @@ def contact(token):
         conn.close()
 
         if not data:
-        return "Unauthorized", 403
+            return "Unauthorized", 403
 
         vehicle = data[0]
 
@@ -359,9 +359,9 @@ def contact(token):
 
         return send_file(
         buffer,
-        mimetype="image/png",
-        as_attachment=True,
-        download_name=f"{vehicle}_QR.png"
+            mimetype="image/png",
+            as_attachment=True,
+            download_name=f"{vehicle}_QR.png"
         )
 
 # ==============================
