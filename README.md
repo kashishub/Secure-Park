@@ -5,7 +5,15 @@ SecurePark ID is a web-based Vehicle Contact System that allows vehicle owners t
 In case of emergency, blocking, or parking issues, anyone can scan the QR code and directly contact the vehicle owner via Call, WhatsApp, or SMS — without publicly displaying the owner's number on the vehicle.
 
 ---
+## Update Log
 
+### 23 Feb 2026
+- Database tables "users" and "vehicles" truncated.
+- System reset to fresh state.
+- All data cleared.
+- Application now behaves like first-time deployment.
+
+---
 ## 🌐 Live Demo
 
 🔗 Live Application:  
