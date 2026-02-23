@@ -321,6 +321,8 @@ def contact(token):
 # Download QR Route
 # ==============================
 
+from PIL import Image, ImageDraw, ImageFont
+
 @app.route("/download-qr/<token>")
 @login_required
 def download_qr(token):
@@ -342,18 +344,81 @@ def download_qr(token):
 
     vehicle = data[0]
 
-    qr_url = request.host_url + "v/" + token
-    qr = qrcode.make(qr_url)
+    # ========= STICKER SIZE (3x5 ratio printable) =========
+    WIDTH = 900
+    HEIGHT = 1500
 
+    sticker = Image.new("RGB", (WIDTH, HEIGHT), "#f2f2f2")
+    draw = ImageDraw.Draw(sticker)
+
+    # ========= BORDER =========
+    border_margin = 40
+    draw.rounded_rectangle(
+        [border_margin, border_margin, WIDTH - border_margin, HEIGHT - border_margin],
+        radius=60,
+        outline="black",
+        width=8
+    )
+
+    # ========= WATERMARK =========
+    watermark_text = "SECURE PARK • "
+    for y in range(0, HEIGHT, 300):
+        draw.text((50, y), watermark_text * 8, fill="#dddddd")
+
+    # ========= FONTS =========
+    try:
+        font_title = ImageFont.truetype("arial.ttf", 70)
+        font_vehicle = ImageFont.truetype("arial.ttf", 55)
+        font_small = ImageFont.truetype("arial.ttf", 40)
+    except:
+        font_title = ImageFont.load_default()
+        font_vehicle = ImageFont.load_default()
+        font_small = ImageFont.load_default()
+
+    # ========= TITLE =========
+    draw.text((200, 180), "Vehicle Contact System", fill="black", font=font_title)
+
+    # ========= VEHICLE NUMBER =========
+    draw.text((250, 300), f"Vehicle: {vehicle}", fill="black", font=font_vehicle)
+
+    draw.text((300, 380), "Scan to contact vehicle owner", fill="gray", font=font_small)
+
+    # ========= QR GENERATION =========
+    qr_url = request.host_url + "v/" + token
+    qr = qrcode.make(qr_url).convert("RGB")
+    qr = qr.resize((500, 500))
+
+    # QR Rounded Box
+    qr_box_x = (WIDTH - 560) // 2
+    qr_box_y = 500
+
+    draw.rounded_rectangle(
+        [qr_box_x, qr_box_y, qr_box_x + 560, qr_box_y + 560],
+        radius=50,
+        outline="black",
+        width=6
+    )
+
+    sticker.paste(qr, (qr_box_x + 30, qr_box_y + 30))
+
+    # ========= FOOTER =========
+    draw.text(
+        (200, 1150),
+        "In case of emergency or blocking,\nplease scan this QR.",
+        fill="black",
+        font=font_small
+    )
+
+    # ========= SAVE =========
     buffer = BytesIO()
-    qr.save(buffer, format="PNG")
+    sticker.save(buffer, format="PNG")
     buffer.seek(0)
 
     return send_file(
         buffer,
         mimetype="image/png",
         as_attachment=True,
-        download_name=f"{vehicle}_QR.png"
+        download_name=f"{vehicle}_SecurePark_Sticker.png"
     )
 
 
