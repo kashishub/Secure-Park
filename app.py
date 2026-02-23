@@ -90,6 +90,14 @@ def load_user(user_id):
         return User(*user)
     return None
 
+# ==============================
+# Home Route
+# ==============================
+
+@app.route("/")
+def home():
+    return redirect(url_for("login"))
+
 
 # ==============================
 # Authentication Routes
