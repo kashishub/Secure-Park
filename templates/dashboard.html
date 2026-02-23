@@ -223,9 +223,9 @@
                         View QR Sticker
                     </button>
 
-                    <a href="{{ url_for('download_qr', token=v.token) }}">
+                    <a href="/sticker/{{ v.token }}" target="_blank">
                         <button class="action-btn download-btn">
-                            Download QR Sticker
+                            Download
                         </button>
                     </a>
 
