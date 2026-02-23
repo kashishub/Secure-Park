@@ -1,15 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Dashboard</title>
+    <title>SecurePark Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .vehicle-card {
+            border: 1px solid #e0e0e0;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            background: #f8f9fb;
+            text-align: center;
+        }
+
+        .vehicle-card h4 {
+            margin-bottom: 5px;
+        }
+
+        .vehicle-card img {
+            margin-top: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .action-buttons {
+            margin-top: 15px;
+        }
+
+        .delete-btn {
+            color: #d00000;
+            text-decoration: none;
+            font-weight: 600;
+            margin-right: 15px;
+        }
+
+        .delete-btn:hover {
+            text-decoration: underline;
+        }
+
+        .download-btn button {
+            padding: 8px 15px;
+            border-radius: 6px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .download-btn button:hover {
+            background-color: #0056b3;
+        }
+    </style>
 </head>
 <body>
 
 <div class="card">
+
     <h2>Your Vehicles</h2>
 
-    <p>Logged in as: {{ current_user.email }}</p>
+    <p>Logged in as: <strong>{{ current_user.email }}</strong></p>
     <a href="{{ url_for('logout') }}">Logout</a>
 
     {% with messages = get_flashed_messages() %}
@@ -37,14 +87,34 @@
     <h3>Registered Vehicles</h3>
 
     {% if vehicles %}
-        <ul>
-            {% for v in vehicles %}
-                <li>
-                    {{ v[1] }} - {{ v[2] }}
-                    <a href="{{ url_for('delete_vehicle', vehicle_id=v[0]) }}">Delete</a>
-                </li>
-            {% endfor %}
-        </ul>
+        {% for v in vehicles %}
+            <div class="vehicle-card">
+
+                <h4>{{ v.vehicle }}</h4>
+                <p><strong>Call:</strong> {{ v.call_number }}</p>
+
+                <!-- QR Image -->
+                <img src="data:image/png;base64,{{ v.qr_image }}" width="150">
+
+                <div class="action-buttons">
+
+                    <!-- Download Button -->
+                    <span class="download-btn">
+                        <a href="{{ url_for('download_qr', token=v.token) }}">
+                            <button>Download QR</button>
+                        </a>
+                    </span>
+
+                    <!-- Delete Button -->
+                    <a class="delete-btn"
+                       href="{{ url_for('delete_vehicle', vehicle_id=v.id) }}">
+                        Delete
+                    </a>
+
+                </div>
+
+            </div>
+        {% endfor %}
     {% else %}
         <p>No vehicles added yet.</p>
     {% endif %}

@@ -3,6 +3,7 @@ import secrets
 import psycopg2
 import base64
 from io import BytesIO
+from flask import send_file
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -182,7 +183,7 @@ def dashboard():
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT id, vehicle, call_number FROM vehicles WHERE user_id = %s",
+        "SELECT id, vehicle, call_number, token FROM vehicles WHERE user_id = %s",
         (current_user.id,)
     )
     vehicles = cursor.fetchall()
@@ -190,7 +191,29 @@ def dashboard():
     cursor.close()
     conn.close()
 
-    return render_template("dashboard.html", vehicles=vehicles)
+    vehicle_list = []
+
+    for v in vehicles:
+        vehicle_id, vehicle_number, call_number, token = v
+
+        qr_url = request.host_url + "v/" + token
+        qr = qrcode.make(qr_url)
+
+        buffer = BytesIO()
+        qr.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+        vehicle_list.append({
+            "id": vehicle_id,
+            "vehicle": vehicle_number,
+            "call_number": call_number,
+            "qr_image": qr_base64,  
+            "token": token
+        })
+
+    return render_template("dashboard.html", vehicles=vehicle_list)
 
 
 # ==============================
@@ -210,7 +233,20 @@ def add_vehicle():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Prevent duplicate vehicle
+    # 🔒 LIMIT: Max 3 vehicles per owner
+    cursor.execute(
+        "SELECT COUNT(*) FROM vehicles WHERE user_id = %s",
+        (current_user.id,)
+    )
+    count = cursor.fetchone()[0]
+
+    if count >= 3:
+        flash("Maximum 3 vehicles allowed per account.")
+        cursor.close()
+        conn.close()
+        return redirect(url_for("dashboard"))
+
+    # Prevent duplicate vehicle globally
     cursor.execute(
         "SELECT id FROM vehicles WHERE vehicle = %s",
         (vehicle,)
@@ -288,6 +324,45 @@ def contact(token):
         whatsapp_number=whatsapp_number
     )
 
+
+# ==============================
+# Download Route
+# ==============================
+
+    @app.route("/download-qr/<token>")
+@login_required
+def download_qr(token):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT vehicle FROM vehicles WHERE token = %s AND user_id = %s",
+        (token, current_user.id)
+    )
+    data = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if not data:
+        return "Unauthorized", 403
+
+    vehicle = data[0]
+
+    qr_url = request.host_url + "v/" + token
+    qr = qrcode.make(qr_url)
+
+    buffer = BytesIO()
+    qr.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        mimetype="image/png",
+        as_attachment=True,
+        download_name=f"{vehicle}_QR.png"
+    )
 
 # ==============================
 # Run App
