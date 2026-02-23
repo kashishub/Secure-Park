@@ -5,52 +5,95 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 
     <style>
-        .vehicle-card {
-            border: 1px solid #e0e0e0;
-            padding: 20px;
-            margin-bottom: 25px;
-            border-radius: 12px;
-            background: #f8f9fb;
+        .vehicle-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .vehicle-table th,
+        .vehicle-table td {
+            padding: 14px;
+            border-bottom: 1px solid #e0e0e0;
             text-align: center;
         }
 
-        .vehicle-card h4 {
-            margin-bottom: 5px;
+        .vehicle-table th {
+            background: #f5f6fa;
+            font-weight: 600;
         }
 
-        .vehicle-card img {
-            margin-top: 15px;
-            border-radius: 8px;
-            border: 1px solid #ddd;
+        .action-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
         }
 
-        .action-buttons {
-            margin-top: 15px;
+        .view-btn {
+            background: #6c63ff;
+            color: white;
+        }
+
+        .download-btn {
+            background: #007bff;
+            color: white;
         }
 
         .delete-btn {
-            color: #d00000;
-            text-decoration: none;
-            font-weight: 600;
-            margin-right: 15px;
-        }
-
-        .delete-btn:hover {
-            text-decoration: underline;
-        }
-
-        .download-btn button {
-            padding: 8px 15px;
-            border-radius: 6px;
-            border: none;
-            background-color: #007bff;
+            background: #d00000;
             color: white;
+        }
+
+        .action-btn:hover {
+            opacity: 0.85;
+        }
+
+        /* Modal */
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 14px;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .modal img {
+            width: 300px;
+            margin-top: 15px;
+            border-radius: 12px;
+        }
+
+        .close {
+            float: right;
+            font-size: 20px;
             cursor: pointer;
         }
 
-        .download-btn button:hover {
-            background-color: #0056b3;
+        .close:hover {
+            color: red;
         }
+
+        .alert {
+            background: #ffeaea;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
     </style>
 </head>
 <body>
@@ -87,39 +130,66 @@
     <h3>Registered Vehicles</h3>
 
     {% if vehicles %}
-        {% for v in vehicles %}
-            <div class="vehicle-card">
+        <table class="vehicle-table">
+            <tr>
+                <th>Vehicle</th>
+                <th>Call Number</th>
+                <th>Actions</th>
+            </tr>
 
-                <h4>{{ v.vehicle }}</h4>
-                <p><strong>Call:</strong> {{ v.call_number }}</p>
+            {% for v in vehicles %}
+            <tr>
+                <td><strong>{{ v.vehicle }}</strong></td>
+                <td>{{ v.call_number }}</td>
+                <td>
 
-                <!-- QR Image -->
-                <img src="data:image/png;base64,{{ v.qr_image }}" width="150">
+                    <button class="action-btn view-btn"
+                        onclick="openSticker('{{ v.qr_image }}')">
+                        View Sticker
+                    </button>
 
-                <div class="action-buttons">
-
-                    <!-- Download Button -->
-                    <span class="download-btn">
-                        <a href="{{ url_for('download_qr', token=v.token) }}">
-                            <button>Download QR</button>
-                        </a>
-                    </span>
-
-                    <!-- Delete Button -->
-                    <a class="delete-btn"
-                       href="{{ url_for('delete_vehicle', vehicle_id=v.id) }}">
-                        Delete
+                    <a href="{{ url_for('download_qr', token=v.token) }}">
+                        <button class="action-btn download-btn">
+                            Download
+                        </button>
                     </a>
 
-                </div>
+                    <a href="{{ url_for('delete_vehicle', vehicle_id=v.id) }}">
+                        <button class="action-btn delete-btn">
+                            Delete
+                        </button>
+                    </a>
 
-            </div>
-        {% endfor %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
     {% else %}
         <p>No vehicles added yet.</p>
     {% endif %}
 
 </div>
+
+<!-- Sticker Preview Modal -->
+<div id="stickerModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeSticker()">&times;</span>
+        <h3>Sticker Preview</h3>
+        <img id="stickerPreview" src="">
+    </div>
+</div>
+
+<script>
+function openSticker(qrImage) {
+    document.getElementById("stickerPreview").src =
+        "data:image/png;base64," + qrImage;
+    document.getElementById("stickerModal").style.display = "flex";
+}
+
+function closeSticker() {
+    document.getElementById("stickerModal").style.display = "none";
+}
+</script>
 
 </body>
 </html>
