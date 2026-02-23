@@ -5,53 +5,112 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 
     <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #4b3f72, #7b6fd6);
+            min-height: 100vh;
+        }
+
+        .wrapper {
+            display: flex;
+            height: 100vh;
+            padding: 40px;
+            box-sizing: border-box;
+            gap: 30px;
+        }
+
+        /* LEFT 40% */
+        .left-panel {
+            width: 40%;
+            background: white;
+            border-radius: 16px;
+            padding: 35px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+            overflow-y: auto;
+        }
+
+        /* RIGHT 60% */
+        .right-panel {
+            width: 60%;
+            background: white;
+            border-radius: 16px;
+            padding: 35px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+            overflow-y: auto;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        hr {
+            margin: 25px 0;
+            border: none;
+            border-top: 1px solid #eee;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .primary-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            background: #6c63ff;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .primary-btn:hover {
+            opacity: 0.9;
+        }
+
         .vehicle-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
         }
 
         .vehicle-table th,
         .vehicle-table td {
-            padding: 14px;
-            border-bottom: 1px solid #e0e0e0;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
             text-align: center;
         }
 
         .vehicle-table th {
             background: #f5f6fa;
-            font-weight: 600;
         }
 
         .action-btn {
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 6px;
-            text-decoration: none;
             border: none;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
+            margin: 3px;
         }
 
-        .view-btn {
-            background: #6c63ff;
-            color: white;
-        }
+        .view-btn { background: #6c63ff; color: white; }
+        .download-btn { background: #007bff; color: white; }
+        .delete-btn { background: #d00000; color: white; }
 
-        .download-btn {
-            background: #007bff;
-            color: white;
-        }
+        .action-btn:hover { opacity: 0.85; }
 
-        .delete-btn {
-            background: #d00000;
-            color: white;
+        .alert {
+            background: #ffeaea;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            color: red;
         }
-
-        .action-btn:hover {
-            opacity: 0.85;
-        }
-
-        /* Modal */
 
         .modal {
             display: none;
@@ -65,71 +124,64 @@
 
         .modal-content {
             background: white;
-            padding: 25px;
-            border-radius: 14px;
+            padding: 20px;
+            border-radius: 12px;
             text-align: center;
-            max-width: 400px;
         }
 
         .modal img {
-            width: 300px;
-            margin-top: 15px;
-            border-radius: 12px;
+            width: 350px;
+            margin-top: 10px;
         }
 
         .close {
             float: right;
-            font-size: 20px;
             cursor: pointer;
+            font-size: 20px;
         }
 
         .close:hover {
             color: red;
         }
-
-        .alert {
-            background: #ffeaea;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-
     </style>
 </head>
 <body>
 
-<div class="card">
+<div class="wrapper">
 
-    <h2>Your Vehicles</h2>
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+        <h2>Add Vehicle</h2>
 
-    <p>Logged in as: <strong>{{ current_user.email }}</strong></p>
-    <a href="{{ url_for('logout') }}">Logout</a>
+        <p>Logged in as: <strong>{{ current_user.email }}</strong></p>
+        <a href="{{ url_for('logout') }}">Logout</a>
 
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            <div class="alert">
-                {% for message in messages %}
-                    <p>{{ message }}</p>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="alert">
+                    {% for message in messages %}
+                        <p>{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
-    <hr>
+        <hr>
 
-    <h3>Add Vehicle</h3>
-    <form method="POST" action="{{ url_for('add_vehicle') }}">
-        <input type="text" name="vehicle" placeholder="Vehicle Number" required>
-        <input type="text" name="call_number" placeholder="Call Number" required>
-        <input type="text" name="whatsapp_number" placeholder="WhatsApp Number (Optional)">
-        <button type="submit" class="primary">Add Vehicle</button>
-    </form>
+        <form method="POST" action="{{ url_for('add_vehicle') }}">
+            <input type="text" name="vehicle" placeholder="Vehicle Number" required>
+            <input type="text" name="call_number" placeholder="Call Number" required>
+            <input type="text" name="whatsapp_number" placeholder="WhatsApp Number (Optional)">
+            <button type="submit" class="primary-btn">Add Vehicle</button>
+        </form>
+    </div>
 
-    <hr>
 
-    <h3>Registered Vehicles</h3>
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+        <h2>Registered Vehicles</h2>
 
-    {% if vehicles %}
+        {% if vehicles %}
         <table class="vehicle-table">
             <tr>
                 <th>Vehicle</th>
@@ -142,10 +194,9 @@
                 <td><strong>{{ v.vehicle }}</strong></td>
                 <td>{{ v.call_number }}</td>
                 <td>
-
                     <button class="action-btn view-btn"
-                        onclick="openSticker('{{ v.qr_image }}')">
-                        View Sticker
+                        onclick="openSticker('{{ v.token }}')">
+                        View
                     </button>
 
                     <a href="{{ url_for('download_qr', token=v.token) }}">
@@ -159,30 +210,31 @@
                             Delete
                         </button>
                     </a>
-
                 </td>
             </tr>
             {% endfor %}
         </table>
-    {% else %}
-        <p>No vehicles added yet.</p>
-    {% endif %}
+        {% else %}
+            <p>No vehicles added yet.</p>
+        {% endif %}
+    </div>
 
 </div>
+
 
 <!-- Sticker Preview Modal -->
 <div id="stickerModal" class="modal">
     <div class="modal-content">
         <span class="close" onclick="closeSticker()">&times;</span>
         <h3>Sticker Preview</h3>
-        <img id="stickerPreview" src="">
+        <img id="stickerPreview">
     </div>
 </div>
 
 <script>
-function openSticker(qrImage) {
+function openSticker(token) {
     document.getElementById("stickerPreview").src =
-        "data:image/png;base64," + qrImage;
+        "/download-qr/" + token;
     document.getElementById("stickerModal").style.display = "flex";
 }
 
