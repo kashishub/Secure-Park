@@ -143,6 +143,30 @@
         .close:hover {
             color: red;
         }
+        .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.6);
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        }
+
+        .modal-content {
+        background: white;
+        padding: 20px;
+        border-radius: 20px;
+        position: relative;
+        }
+
+        .close-btn {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 22px;
+        cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -196,12 +220,12 @@
                 <td>
                     <button class="action-btn view-btn"
                         onclick="openSticker('{{ v.token }}')">
-                        View
+                        View QR Sticker
                     </button>
 
                     <a href="{{ url_for('download_qr', token=v.token) }}">
                         <button class="action-btn download-btn">
-                            Download
+                            Download QR Sticker
                         </button>
                     </a>
 
@@ -222,23 +246,27 @@
 </div>
 
 
-<!-- Sticker Preview Modal -->
+<!-- STICKER MODAL -->
 <div id="stickerModal" class="modal">
     <div class="modal-content">
-        <span class="close" onclick="closeSticker()">&times;</span>
-        <h3>Sticker Preview</h3>
-        <img id="stickerPreview">
+        <span class="close-btn" onclick="closeModal()">×</span>
+
+        <iframe id="stickerFrame"
+                style="width:380px; height:630px; border:none; border-radius:20px;">
+        </iframe>
     </div>
 </div>
 
+
 <script>
 function openSticker(token) {
-    document.getElementById("stickerPreview").src =
-        "/download-qr/" + token;
+    const frame = document.getElementById("stickerFrame");
+    frame.src = "/sticker/" + token;
+
     document.getElementById("stickerModal").style.display = "flex";
 }
 
-function closeSticker() {
+function closeModal() {
     document.getElementById("stickerModal").style.display = "none";
 }
 </script>

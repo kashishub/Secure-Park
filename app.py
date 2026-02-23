@@ -321,11 +321,9 @@ def contact(token):
 # Download QR Route
 # ==============================
 
-from PIL import Image, ImageDraw, ImageFont
-
-@app.route("/download-qr/<token>")
+@app.route("/sticker/<token>")
 @login_required
-def download_qr(token):
+def sticker(token):
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -344,73 +342,19 @@ def download_qr(token):
 
     vehicle = data[0]
 
-    SIZE = 700
-    sticker = Image.new("RGB", (SIZE, SIZE), "#f5f5f5")
-    draw = ImageDraw.Draw(sticker)
-
-    # Rounded border
-    draw.rounded_rectangle(
-        [20, 20, SIZE-20, SIZE-20],
-        radius=40,
-        outline="black",
-        width=5
-    )
-
-    # Watermark
-    for y in range(0, SIZE, 150):
-        draw.text((0, y), "SECURE PARK  •  " * 5, fill=(180,180,180))
-
-    # Fonts
-    try:
-        title_font = ImageFont.truetype("arial.ttf", 40)
-        small_font = ImageFont.truetype("arial.ttf", 24)
-    except:
-        title_font = ImageFont.load_default()
-        small_font = ImageFont.load_default()
-
-    # Title
-    title = "Vehicle Contact System"
-    w, h = draw.textbbox((0,0), title, font=title_font)[2:]
-    draw.text(((SIZE-w)/2, 60), title, fill="black", font=title_font)
-
-    # Vehicle number
-    vehicle_text = f"Vehicle: {vehicle}"
-    w, h = draw.textbbox((0,0), vehicle_text, font=title_font)[2:]
-    draw.text(((SIZE-w)/2, 120), vehicle_text, fill="black", font=title_font)
-
-    subtitle = "Scan to contact vehicle owner"
-    w, h = draw.textbbox((0,0), subtitle, font=small_font)[2:]
-    draw.text(((SIZE-w)/2, 170), subtitle, fill="gray", font=small_font)
-
-    # QR
     qr_url = request.host_url + "v/" + token
-    qr = qrcode.make(qr_url).convert("RGB")
-    qr = qr.resize((350, 350))
-
-    qr_x = (SIZE-350)//2
-    qr_y = 230
-    sticker.paste(qr, (qr_x, qr_y))
-
-    # Footer
-    footer = "In case of emergency or blocking,\nplease scan this QR."
-    w, h = draw.multiline_textbbox((0,0), footer, font=small_font)[2:]
-    draw.multiline_text(
-        ((SIZE-w)/2, 610),
-        footer,
-        fill="black",
-        font=small_font,
-        align="center"
-    )
+    qr = qrcode.make(qr_url)
 
     buffer = BytesIO()
-    sticker.save(buffer, format="PNG")
+    qr.save(buffer, format="PNG")
     buffer.seek(0)
 
-    return send_file(
-        buffer,
-        mimetype="image/png",
-        as_attachment=True,
-        download_name=f"{vehicle}_Sticker.png"
+    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+    return render_template(
+        "qr_result.html",
+        vehicle=vehicle,
+        qr_image=qr_base64
     )
 
 
