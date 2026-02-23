@@ -333,36 +333,36 @@ def contact(token):
     @login_required
     def download_qr(token):
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT vehicle FROM vehicles WHERE token = %s AND user_id = %s",
-        (token, current_user.id)
-    )
-    data = cursor.fetchone()
+        cursor.execute(
+            "SELECT vehicle FROM vehicles WHERE token = %s AND user_id = %s",
+            (token, current_user.id)
+        )
+        data = cursor.fetchone()
 
-    cursor.close()
-    conn.close()
+        cursor.close()
+        conn.close()
 
-    if not data:
+        if not data:
         return "Unauthorized", 403
 
-    vehicle = data[0]
+        vehicle = data[0]
 
-    qr_url = request.host_url + "v/" + token
-    qr = qrcode.make(qr_url)
+        qr_url = request.host_url + "v/" + token
+        qr = qrcode.make(qr_url)
 
-    buffer = BytesIO()
-    qr.save(buffer, format="PNG")
-    buffer.seek(0)
+        buffer = BytesIO()
+        qr.save(buffer, format="PNG")
+        buffer.seek(0)
 
-    return send_file(
+        return send_file(
         buffer,
         mimetype="image/png",
         as_attachment=True,
         download_name=f"{vehicle}_QR.png"
-    )
+        )
 
 # ==============================
 # Run App
