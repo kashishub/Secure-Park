@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="card">
+    <h2>Your Vehicles</h2>
+
+    <p>Logged in as: {{ current_user.email }}</p>
+    <a href="{{ url_for('logout') }}">Logout</a>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="alert">
+                {% for message in messages %}
+                    <p>{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <hr>
+
+    <h3>Add Vehicle</h3>
+    <form method="POST" action="{{ url_for('add_vehicle') }}">
+        <input type="text" name="vehicle" placeholder="Vehicle Number" required>
+        <input type="text" name="call_number" placeholder="Call Number" required>
+        <input type="text" name="whatsapp_number" placeholder="WhatsApp Number (Optional)">
+        <button type="submit" class="primary">Add Vehicle</button>
+    </form>
+
+    <hr>
+
+    <h3>Registered Vehicles</h3>
+
+    {% if vehicles %}
+        <ul>
+            {% for v in vehicles %}
+                <li>
+                    {{ v[1] }} - {{ v[2] }}
+                    <a href="{{ url_for('delete_vehicle', vehicle_id=v[0]) }}">Delete</a>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No vehicles added yet.</p>
+    {% endif %}
+
+</div>
+
+</body>
+</html>
