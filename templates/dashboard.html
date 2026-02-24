@@ -3,6 +3,7 @@
 <head>
     <title>SecurePark Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,
     <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
         <rect width='64' height='64' fill='%23667eea'/>
@@ -23,13 +24,11 @@
             display: flex;
             height: 100vh;
             padding: 40px;
-            box-sizing: border-box;
             gap: 30px;
+            box-sizing: border-box;
         }
 
-        /* LEFT 40% */
-        .left-panel {
-            width: 40%;
+        .left-panel, .right-panel {
             background: white;
             border-radius: 16px;
             padding: 35px;
@@ -37,25 +36,30 @@
             overflow-y: auto;
         }
 
-        /* RIGHT 60% */
-        .right-panel {
-            width: 60%;
-            background: white;
-            border-radius: 16px;
-            padding: 35px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
-            overflow-y: auto;
+        .left-panel { width: 40%; }
+        .right-panel { width: 60%; }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
         }
 
-        h2 {
-            margin-top: 0;
-        }
-
-        hr {
-            margin: 25px 0;
+        .btn {
+            padding: 8px 14px;
+            border-radius: 6px;
             border: none;
-            border-top: 1px solid #eee;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
         }
+
+        .logout-btn { background: #444; color: white; }
+        .logout-btn:hover { opacity: 0.85; }
+
+        .delete-account-btn { background: #d00000; color: white; }
+        .delete-account-btn:hover { opacity: 0.85; }
 
         input {
             width: 100%;
@@ -74,10 +78,6 @@
             color: white;
             cursor: pointer;
             font-weight: 600;
-        }
-
-        .primary-btn:hover {
-            opacity: 0.9;
         }
 
         .vehicle-table {
@@ -103,13 +103,12 @@
             cursor: pointer;
             font-size: 13px;
             margin: 3px;
+            color: white;
         }
 
-        .view-btn { background: #6c63ff; color: white; }
-        .download-btn { background: #007bff; color: white; }
-        .delete-btn { background: #d00000; color: white; }
-
-        .action-btn:hover { opacity: 0.85; }
+        .view-btn { background: #6c63ff; }
+        .download-btn { background: #007bff; }
+        .delete-btn { background: #d00000; }
 
         .alert {
             background: #ffeaea;
@@ -131,61 +130,48 @@
 
         .modal-content {
             background: white;
-            padding: 20px;
+            padding: 25px;
             border-radius: 12px;
             text-align: center;
-        }
-
-        .modal img {
             width: 350px;
-            margin-top: 10px;
         }
 
-        .close {
-            float: right;
-            cursor: pointer;
-            font-size: 20px;
+        .confirm-btn {
+            background: #d00000;
+            color: white;
+            margin: 10px;
         }
 
-        .close:hover {
-            color: red;
-        }
-        .modal {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.6);
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-        }
-
-        .modal-content {
-        background: white;
-        padding: 20px;
-        border-radius: 20px;
-        position: relative;
-        }
-
-        .close-btn {
-        position: absolute;
-        top: 10px;
-        right: 15px;
-        font-size: 22px;
-        cursor: pointer;
+        .cancel-btn {
+            background: #444;
+            color: white;
+            margin: 10px;
         }
     </style>
 </head>
+
 <body>
 
 <div class="wrapper">
 
     <!-- LEFT PANEL -->
     <div class="left-panel">
-        <h2>Add Vehicle</h2>
 
-        <p>Logged in as: <strong>{{ current_user.email }}</strong></p>
-        <a href="{{ url_for('logout') }}">Logout</a>
+        <div class="top-bar">
+            <div>
+                <strong>{{ current_user.email }}</strong>
+            </div>
+
+            <div>
+                <a href="{{ url_for('logout') }}">
+                    <button class="btn logout-btn">Logout</button>
+                </a>
+
+                <button class="btn delete-account-btn" onclick="openDeleteModal()">
+                    Delete Account
+                </button>
+            </div>
+        </div>
 
         {% with messages = get_flashed_messages() %}
             {% if messages %}
@@ -199,17 +185,20 @@
 
         <hr>
 
+        <h2>Add Vehicle</h2>
+
         <form method="POST" action="{{ url_for('add_vehicle') }}">
             <input type="text" name="vehicle" placeholder="Vehicle Number" required>
             <input type="text" name="call_number" placeholder="Call Number" required>
             <input type="text" name="whatsapp_number" placeholder="WhatsApp Number (Optional)">
             <button type="submit" class="primary-btn">Add Vehicle</button>
         </form>
-    </div>
 
+    </div>
 
     <!-- RIGHT PANEL -->
     <div class="right-panel">
+
         <h2>Registered Vehicles</h2>
 
         {% if vehicles %}
@@ -227,7 +216,7 @@
                 <td>
                     <button class="action-btn view-btn"
                         onclick="openSticker('{{ v.token }}')">
-                        View QR Sticker
+                        View QR
                     </button>
 
                     <a href="/sticker/{{ v.token }}" target="_blank">
@@ -252,29 +241,31 @@
 
 </div>
 
-
-<!-- STICKER MODAL -->
-<div id="stickerModal" class="modal">
+<!-- DELETE CONFIRM MODAL -->
+<div id="deleteModal" class="modal">
     <div class="modal-content">
-        <span class="close-btn" onclick="closeModal()">×</span>
+        <h3>Confirm Account Deletion</h3>
+        <p>This action cannot be undone.</p>
 
-        <iframe id="stickerFrame"
-                style="width:380px; height:630px; border:none; border-radius:20px;">
-        </iframe>
+        <a href="{{ url_for('delete_account') }}">
+            <button class="btn confirm-btn">Yes, Delete</button>
+        </a>
+
+        <button class="btn cancel-btn" onclick="closeDeleteModal()">Cancel</button>
     </div>
 </div>
 
-
 <script>
 function openSticker(token) {
-    const frame = document.getElementById("stickerFrame");
-    frame.src = "/sticker/" + token;
-
-    document.getElementById("stickerModal").style.display = "flex";
+    window.open("/sticker/" + token, "_blank");
 }
 
-function closeModal() {
-    document.getElementById("stickerModal").style.display = "none";
+function openDeleteModal() {
+    document.getElementById("deleteModal").style.display = "flex";
+}
+
+function closeDeleteModal() {
+    document.getElementById("deleteModal").style.display = "none";
 }
 </script>
 

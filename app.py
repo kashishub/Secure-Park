@@ -168,7 +168,7 @@ def login():
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT id, email, password, role FROM users WHERE email = %s",
+            "SELECT id, email, password, role, created_at, is_blocked FROM users WHERE email = %s",
             (email,)
         )
         user = cursor.fetchone()
@@ -177,8 +177,20 @@ def login():
         conn.close()
 
         if user and check_password_hash(user[2], password):
+
+            # user structure:
+            # id, email, password, role, created_at, is_blocked
+
+            if user[5]:  # is_blocked column
+                flash("Your account has been suspended. Please contact administrator.")
+                return redirect(url_for("login"))
+
             login_user(User(*user))
-            return redirect(url_for("dashboard"))
+
+            if user[3] == "admin":
+                return redirect(url_for("admin_dashboard"))
+            else:
+                return redirect(url_for("dashboard"))
         else:
             flash("Invalid email or password.")
             return redirect(url_for("login"))
@@ -193,6 +205,29 @@ def login():
 @app.route("/logout")
 @login_required
 def logout():
+    logout_user()
+    return redirect(url_for("login"))
+
+
+# ==============================
+# Delete Account
+# ==============================
+
+@app.route("/delete-account")
+@login_required
+def delete_account():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "DELETE FROM users WHERE id = %s",
+        (current_user.id,)
+    )
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
     logout_user()
     return redirect(url_for("login"))
 
