@@ -149,7 +149,11 @@ def login():
 
             login_user(User(user_id, user_email, password_hash, role))
 
-            return redirect(url_for("dashboard"))
+            # 🔥 Role-based redirect
+            if role == "admin":
+                return redirect(url_for("admin_dashboard"))
+            else:
+                return redirect(url_for("dashboard"))
 
         flash("Invalid email or password.")
         return redirect(url_for("login"))
@@ -361,6 +365,70 @@ def contact(token):
         call_number=call_number,
         whatsapp_number=whatsapp_number
     )
+
+# ==============================
+# Admin Dashboard Route
+# ==============================
+
+@app.route("/admin")
+@login_required
+def admin_dashboard():
+
+    if current_user.role != "admin":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, email, role, is_blocked, created_at
+        FROM users
+        ORDER BY created_at DESC
+    """)
+
+    users = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template("admin_dashboard.html", users=users)
+        
+# ==============================
+# Block / Unblock Route 
+# ==============================
+
+@app.route("/admin/toggle-block/<int:user_id>")
+@login_required
+def toggle_block(user_id):
+
+    if current_user.role != "admin":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # prevent admin blocking themselves
+    if user_id == current_user.id:
+        flash("You cannot block yourself.")
+        cursor.close()
+        conn.close()
+        return redirect(url_for("admin_dashboard"))
+
+    cursor.execute("""
+        UPDATE users
+        SET is_blocked = NOT is_blocked
+        WHERE id = %s
+    """, (user_id,))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    flash("User status updated.")
+    return redirect(url_for("admin_dashboard"))
+
 
 
 if __name__ == "__main__":
