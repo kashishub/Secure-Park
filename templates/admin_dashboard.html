@@ -12,18 +12,19 @@
         }
 
         .wrapper {
-            padding: 50px 0;
             display: flex;
             justify-content: center;
+            align-items: flex-start;
+            padding: 60px 20px;
         }
 
         .container {
+            width: 1200px;
+            max-width: 95%;
             background: white;
-            width: 90%;
-            max-width: 1200px;
-            border-radius: 16px;
+            border-radius: 18px;
             padding: 40px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
         }
 
         .top-bar {
@@ -96,6 +97,34 @@
         .status-blocked { color:red; font-weight:600;}
 
         .flash { background:#ffeaea; padding:10px; border-radius:8px; margin-bottom:20px; color:red;}
+
+        .filter-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .filter-bar input,
+        .filter-bar select {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .pagination {
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .pagination a {
+            padding: 6px 12px;
+            background: #6c63ff;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+        }
     </style>
 </head>
 
@@ -141,6 +170,29 @@
             <div class="stat-number">{{ total_vehicles }}</div>
         </div>
     </div>
+
+    <form method="GET" class="filter-bar">
+
+        <input type="text"
+                name="search"
+                placeholder="Search by email"
+                value="{{ search }}">
+
+        <select name="role">
+            <option value="all" {% if role_filter == "all" %}selected{% endif %}>All Roles</option>
+            <option value="admin" {% if role_filter == "admin" %}selected{% endif %}>Admin</option>
+            <option value="owner" {% if role_filter == "owner" %}selected{% endif %}>Owner</option>
+        </select>
+
+        <select name="status">
+            <option value="all" {% if status_filter == "all" %}selected{% endif %}>All Status</option>
+            <option value="active" {% if status_filter == "active" %}selected{% endif %}>Active</option>
+            <option value="blocked" {% if status_filter == "blocked" %}selected{% endif %}>Blocked</option>
+        </select>
+
+        <button type="submit">Apply</button>
+
+    </form>
 
     <table>
         <tr>
@@ -206,6 +258,24 @@
         </tr>
         {% endfor %}
     </table>
+
+    <div class="pagination">
+
+        {% if page > 1 %}
+            <a href="?page={{ page-1 }}&search={{ search }}&role={{ role_filter }}&status={{ status_filter }}">
+                Previous
+            </a>
+        {% endif %}
+
+        <span>Page {{ page }} of {{ total_pages }}</span>
+
+        {% if page < total_pages %}
+            <a href="?page={{ page+1 }}&search={{ search }}&role={{ role_filter }}&status={{ status_filter }}">
+                Next
+            </a>
+        {% endif %}
+
+    </div>
 
 </div>
 </div>

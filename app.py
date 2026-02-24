@@ -375,47 +375,72 @@ def contact(token):
 def admin_dashboard():
 
     if current_user.role != "admin":
-        flash("Access denied.")
         return redirect(url_for("dashboard"))
+
+    search = request.args.get("search", "")
+    role_filter = request.args.get("role", "all")
+    status_filter = request.args.get("status", "all")
+    page = int(request.args.get("page", 1))
+
+    per_page = 5
+    offset = (page - 1) * per_page
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 🔥 Stats
-    cursor.execute("SELECT COUNT(*) FROM users")
+    base_query = """
+    FROM users u
+    LEFT JOIN vehicles v ON u.id = v.user_id
+    WHERE 1=1
+    """
+
+    params = []
+
+    if search:
+        base_query += " AND u.email ILIKE %s"
+        params.append(f"%{search}%")
+
+    if role_filter != "all":
+        base_query += " AND u.role = %s"
+        params.append(role_filter)
+
+    if status_filter == "active":
+        base_query += " AND u.is_blocked = FALSE"
+    elif status_filter == "blocked":
+        base_query += " AND u.is_blocked = TRUE"
+
+    # Total count (for pagination)
+    count_query = "SELECT COUNT(DISTINCT u.id) " + base_query
+    cursor.execute(count_query, params)
     total_users = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM users WHERE is_blocked = FALSE")
-    active_users = cursor.fetchone()[0]
+    # Main query
+    data_query = """
+    SELECT u.id, u.email, u.role, u.is_blocked, u.created_at,
+           COUNT(v.id) as vehicle_count
+    """ + base_query + """
+    GROUP BY u.id
+    ORDER BY u.id DESC
+    LIMIT %s OFFSET %s
+    """
 
-    cursor.execute("SELECT COUNT(*) FROM users WHERE is_blocked = TRUE")
-    blocked_users = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM vehicles")
-    total_vehicles = cursor.fetchone()[0]
-
-    # 🔥 Users with vehicle count
-    cursor.execute("""
-        SELECT u.id, u.email, u.role, u.is_blocked, u.created_at,
-               COUNT(v.id) as vehicle_count
-        FROM users u
-        LEFT JOIN vehicles v ON u.id = v.user_id
-        GROUP BY u.id
-        ORDER BY u.created_at DESC
-    """)
-
+    params.extend([per_page, offset])
+    cursor.execute(data_query, params)
     users = cursor.fetchall()
 
     cursor.close()
     conn.close()
 
+    total_pages = (total_users + per_page - 1) // per_page
+
     return render_template(
         "admin_dashboard.html",
         users=users,
-        total_users=total_users,
-        active_users=active_users,
-        blocked_users=blocked_users,
-        total_vehicles=total_vehicles
+        page=page,
+        total_pages=total_pages,
+        search=search,
+        role_filter=role_filter,
+        status_filter=status_filter
     )
         
 # ==============================
@@ -491,7 +516,7 @@ def transfer_admin(user_id):
     return redirect(url_for("logout"))
 
 
-    
+
 
 if __name__ == "__main__":
     app.run(debug=True)
