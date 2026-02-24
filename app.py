@@ -178,19 +178,23 @@ def login():
 
         if user and check_password_hash(user[2], password):
 
-            # user structure:
-            # id, email, password, role, created_at, is_blocked
+            # unpack tuple properly
+            user_id, user_email, password_hash, role, created_at, is_blocked = user
 
-            if user[5]:  # is_blocked column
+            # 🚫 Blocked account check
+            if is_blocked:
                 flash("Your account has been suspended. Please contact administrator.")
                 return redirect(url_for("login"))
 
-            login_user(User(*user))
+            # ✅ Login only with required fields
+            login_user(User(user_id, user_email, password_hash, role))
 
-            if user[3] == "admin":
+            # 🔀 Role-based redirect
+            if role == "admin":
                 return redirect(url_for("admin_dashboard"))
             else:
                 return redirect(url_for("dashboard"))
+
         else:
             flash("Invalid email or password.")
             return redirect(url_for("login"))
