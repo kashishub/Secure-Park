@@ -21,6 +21,17 @@
 
     <form method="POST">
         <input type="email" name="email" placeholder="Email" required>
+        <!-- Main Password -->
+        <div class="input-group">
+            <input type="password" name="password" placeholder="Create Password" required>
+            <span class="toggle-password">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                </svg>
+            </span>
+        </div>
+        <!-- Confirm Password -->
         <div class="input-group">
             <input type="password" name="confirm_password" placeholder="Confirm Password" required>
             <span class="toggle-password">
