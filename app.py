@@ -428,6 +428,20 @@ def admin_dashboard():
     cursor.execute(data_query, params)
     users = cursor.fetchall()
 
+    # ===== Stats Cards Data =====
+
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM users WHERE is_blocked = FALSE")
+    active_users = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM users WHERE is_blocked = TRUE")
+    blocked_users = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM vehicles")
+    total_vehicles = cursor.fetchone()[0]
+
     cursor.close()
     conn.close()
 
@@ -440,7 +454,11 @@ def admin_dashboard():
         total_pages=total_pages,
         search=search,
         role_filter=role_filter,
-        status_filter=status_filter
+        status_filter=status_filter,
+        total_users=total_users,
+        active_users=active_users,
+        blocked_users=blocked_users,
+        total_vehicles=total_vehicles
     )
         
 # ==============================
