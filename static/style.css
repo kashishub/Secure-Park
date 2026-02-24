@@ -109,6 +109,31 @@ img {
     font-weight: 500;
     animation: fadeIn 0.3s ease-in-out;
 }
+.input-group {
+    position: relative;
+    width: 100%;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 12px 45px 12px 12px;
+    box-sizing: border-box;
+}
+
+.toggle-password {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #666;
+    display: flex;
+    align-items: center;
+}
+
+.toggle-password:hover {
+    color: #000;
+}
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-5px); }
