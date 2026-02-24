@@ -367,7 +367,7 @@ def contact(token):
     )
 
 # ==============================
-# Admin Dashboard Route
+# Admin Route
 # ==============================
 
 @app.route("/admin")
@@ -381,10 +381,27 @@ def admin_dashboard():
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # 🔥 Stats
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM users WHERE is_blocked = FALSE")
+    active_users = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM users WHERE is_blocked = TRUE")
+    blocked_users = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM vehicles")
+    total_vehicles = cursor.fetchone()[0]
+
+    # 🔥 Users with vehicle count
     cursor.execute("""
-        SELECT id, email, role, is_blocked, created_at
-        FROM users
-        ORDER BY created_at DESC
+        SELECT u.id, u.email, u.role, u.is_blocked, u.created_at,
+               COUNT(v.id) as vehicle_count
+        FROM users u
+        LEFT JOIN vehicles v ON u.id = v.user_id
+        GROUP BY u.id
+        ORDER BY u.created_at DESC
     """)
 
     users = cursor.fetchall()
@@ -392,7 +409,14 @@ def admin_dashboard():
     cursor.close()
     conn.close()
 
-    return render_template("admin_dashboard.html", users=users)
+    return render_template(
+        "admin_dashboard.html",
+        users=users,
+        total_users=total_users,
+        active_users=active_users,
+        blocked_users=blocked_users,
+        total_vehicles=total_vehicles
+    )
         
 # ==============================
 # Block / Unblock Route 
@@ -429,7 +453,45 @@ def toggle_block(user_id):
     flash("User status updated.")
     return redirect(url_for("admin_dashboard"))
 
+# ==============================
+# Transfer Admin Route 
+# ==============================
+@app.route("/admin/transfer/<int:user_id>")
+@login_required
+def transfer_admin(user_id):
 
+    if current_user.role != "admin":
+        flash("Access denied.")
+        return redirect(url_for("dashboard"))
+
+    if user_id == current_user.id:
+        flash("You are already admin.")
+        return redirect(url_for("admin_dashboard"))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Make selected user admin
+    cursor.execute(
+        "UPDATE users SET role = 'admin' WHERE id = %s",
+        (user_id,)
+    )
+
+    # Make current admin owner
+    cursor.execute(
+        "UPDATE users SET role = 'owner' WHERE id = %s",
+        (current_user.id,)
+    )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    flash("Admin ownership transferred successfully.")
+    return redirect(url_for("logout"))
+
+
+    
 
 if __name__ == "__main__":
     app.run(debug=True)
