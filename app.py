@@ -265,6 +265,28 @@ def add_vehicle():
     flash("Vehicle added successfully.")
     return redirect(url_for("dashboard"))
 
+# ==============================
+# Delete Vehicle
+# ==============================
+
+@app.route("/delete/<int:vehicle_id>")
+@login_required
+def delete_vehicle(vehicle_id):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "DELETE FROM vehicles WHERE id = %s AND user_id = %s",
+        (vehicle_id, current_user.id)
+    )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    flash("Vehicle deleted.")
+    return redirect(url_for("dashboard"))
 
 # ==============================
 # Sticker Route (FIXED)
