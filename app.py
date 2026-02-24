@@ -3,14 +3,15 @@ import secrets
 import psycopg2
 import base64
 from io import BytesIO
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import qrcode
 
 
 app = Flask(__name__)
-app.secret_key = "securepark_secret_key"
+app.secret_key = os.environ.get("SECRET_KEY", "securepark_secret_key")
+
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -98,12 +99,27 @@ def home():
     return redirect(url_for("login"))
 
 
+# ==============================
+# Register
+# ==============================
+
 @app.route("/register", methods=["GET", "POST"])
 def register_user():
     if request.method == "POST":
-        email = request.form["email"].strip().lower()
-        password = request.form["password"]
 
+        email = request.form.get("email")
+        password = request.form.get("password")
+        confirm_password = request.form.get("confirm_password")
+
+        if not email or not password or not confirm_password:
+            flash("All fields are required.")
+            return redirect(url_for("register_user"))
+
+        if password != confirm_password:
+            flash("Passwords do not match.")
+            return redirect(url_for("register_user"))
+
+        email = email.strip().lower()
         hashed_password = generate_password_hash(password)
 
         conn = get_db_connection()
@@ -115,7 +131,7 @@ def register_user():
                 (email, hashed_password)
             )
             conn.commit()
-        except:
+        except psycopg2.Error:
             conn.rollback()
             flash("Email already registered.")
             cursor.close()
@@ -131,11 +147,22 @@ def register_user():
     return render_template("register_user.html")
 
 
+# ==============================
+# Login
+# ==============================
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        email = request.form["email"].strip().lower()
-        password = request.form["password"]
+
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        if not email or not password:
+            flash("All fields are required.")
+            return redirect(url_for("login"))
+
+        email = email.strip().lower()
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -158,6 +185,10 @@ def login():
 
     return render_template("login.html")
 
+
+# ==============================
+# Logout
+# ==============================
 
 @app.route("/logout")
 @login_required
@@ -217,11 +248,19 @@ def dashboard():
 @app.route("/add-vehicle", methods=["POST"])
 @login_required
 def add_vehicle():
-    vehicle = request.form["vehicle"].strip().upper()
-    call_number = request.form["call_number"].strip()
-    whatsapp_number = request.form["whatsapp_number"].strip()
 
-    if whatsapp_number == "":
+    vehicle = request.form.get("vehicle")
+    call_number = request.form.get("call_number")
+    whatsapp_number = request.form.get("whatsapp_number")
+
+    if not vehicle or not call_number:
+        flash("Required fields missing.")
+        return redirect(url_for("dashboard"))
+
+    vehicle = vehicle.strip().upper()
+    call_number = call_number.strip()
+
+    if not whatsapp_number:
         whatsapp_number = call_number
 
     conn = get_db_connection()
@@ -266,6 +305,10 @@ def add_vehicle():
     flash("Vehicle added successfully.")
     return redirect(url_for("dashboard"))
 
+
+# ==============================
+# Delete Vehicle
+# ==============================
 
 @app.route("/delete/<int:vehicle_id>")
 @login_required
@@ -318,7 +361,7 @@ def contact(token):
 
 
 # ==============================
-# Download QR Route
+# Sticker Route
 # ==============================
 
 @app.route("/sticker/<token>")
@@ -356,11 +399,6 @@ def sticker(token):
         vehicle=vehicle,
         qr_image=qr_base64
     )
-
-
-# ==============================
-# Run App
-# ==============================
 
 if __name__ == "__main__":
     app.run(debug=True)
