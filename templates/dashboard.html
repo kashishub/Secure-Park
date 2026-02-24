@@ -211,14 +211,10 @@
                 <td><strong>{{ v.vehicle }}</strong></td>
                 <td>{{ v.call_number }}</td>
                 <td>
-                    <button class="action-btn view-btn"
-                        onclick="openSticker('{{ v.token }}')">
-                        View QR
-                    </button>
-
-                    <a href="/sticker/{{ v.token }}" target="_blank">
+                    
+                    <a href="{{ url_for('sticker', token=v.token) }}" target="_blank">
                         <button class="action-btn download-btn">
-                            Download
+                            Download QR
                         </button>
                     </a>
 
