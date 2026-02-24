@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SecurePark Admin Panel</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #2c2f4a, #6c63ff);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .container {
+            padding: 40px;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .logout-btn {
+            background: #444;
+            padding: 8px 14px;
+            border-radius: 6px;
+            color: white;
+            text-decoration: none;
+        }
+
+        .card {
+            background: white;
+            color: black;
+            border-radius: 14px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 14px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        th {
+            background: #f4f5ff;
+        }
+
+        .role-admin {
+            color: #6c63ff;
+            font-weight: bold;
+        }
+
+        .role-owner {
+            color: #333;
+        }
+
+        .status-active {
+            color: green;
+            font-weight: bold;
+        }
+
+        .status-blocked {
+            color: red;
+            font-weight: bold;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            color: white;
+        }
+
+        .block-btn {
+            background: #d00000;
+        }
+
+        .unblock-btn {
+            background: #2e8b57;
+        }
+
+        .disabled-btn {
+            background: grey;
+            cursor: not-allowed;
+        }
+
+        .flash {
+            background: #ffeaea;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="top-bar">
+        <div class="title">SecurePark Admin Panel</div>
+        <div>
+            Logged in as: <strong>{{ current_user.email }}</strong>
+            &nbsp;&nbsp;
+            <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="flash">
+                {% for message in messages %}
+                    <p>{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Action</th>
+            </tr>
+
+            {% for user in users %}
+            <tr>
+                <td>{{ user[0] }}</td>
+                <td>{{ user[1] }}</td>
+
+                <td>
+                    {% if user[2] == "admin" %}
+                        <span class="role-admin">Admin</span>
+                    {% else %}
+                        <span class="role-owner">Owner</span>
+                    {% endif %}
+                </td>
+
+                <td>
+                    {% if user[3] %}
+                        <span class="status-blocked">Blocked</span>
+                    {% else %}
+                        <span class="status-active">Active</span>
+                    {% endif %}
+                </td>
+
+                <td>{{ user[4] }}</td>
+
+                <td>
+                    {% if user[0] == current_user.id %}
+                        <button class="action-btn disabled-btn">
+                            You
+                        </button>
+                    {% else %}
+                        {% if user[3] %}
+                            <a href="{{ url_for('toggle_block', user_id=user[0]) }}">
+                                <button class="action-btn unblock-btn">
+                                    Unblock
+                                </button>
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('toggle_block', user_id=user[0]) }}">
+                                <button class="action-btn block-btn">
+                                    Block
+                                </button>
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                </td>
+
+            </tr>
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+</div>
+
+</body>
+</html>
