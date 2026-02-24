@@ -12,7 +12,6 @@ import qrcode
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "securepark_secret_key")
 
-
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
@@ -24,39 +23,6 @@ login_manager.login_view = "login"
 
 def get_db_connection():
     return psycopg2.connect(os.environ.get("DATABASE_URL"))
-
-
-def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT DEFAULT 'owner',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS vehicles (
-            id SERIAL PRIMARY KEY,
-            vehicle TEXT NOT NULL,
-            call_number TEXT NOT NULL,
-            whatsapp_number TEXT NOT NULL,
-            token TEXT UNIQUE NOT NULL,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
-        );
-    """)
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-
-init_db()
 
 
 # ==============================
@@ -91,7 +57,7 @@ def load_user(user_id):
 
 
 # ==============================
-# Routes
+# Home
 # ==============================
 
 @app.route("/")
@@ -178,18 +144,14 @@ def login():
 
         if user and check_password_hash(user[2], password):
 
-            # unpack tuple properly
             user_id, user_email, password_hash, role, created_at, is_blocked = user
 
-            # 🚫 Blocked account check
             if is_blocked:
                 flash("Your account has been suspended. Please contact administrator.")
                 return redirect(url_for("login"))
 
-            # ✅ Login only with required fields
             login_user(User(user_id, user_email, password_hash, role))
 
-            # 🔀 Role-based redirect
             if role == "admin":
                 return redirect(url_for("admin_dashboard"))
             else:
@@ -214,12 +176,13 @@ def logout():
 
 
 # ==============================
-# Delete Account
+# Delete Account (POST Only)
 # ==============================
 
-@app.route("/delete-account")
+@app.route("/delete-account", methods=["POST"])
 @login_required
 def delete_account():
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -227,12 +190,13 @@ def delete_account():
         "DELETE FROM users WHERE id = %s",
         (current_user.id,)
     )
-    conn.commit()
 
+    conn.commit()
     cursor.close()
     conn.close()
 
     logout_user()
+    flash("Your account has been deleted.")
     return redirect(url_for("login"))
 
 
@@ -243,8 +207,23 @@ def delete_account():
 @app.route("/dashboard")
 @login_required
 def dashboard():
+
+    # extra protection if blocked mid-session
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT is_blocked FROM users WHERE id = %s",
+        (current_user.id,)
+    )
+    blocked = cursor.fetchone()[0]
+
+    if blocked:
+        cursor.close()
+        conn.close()
+        logout_user()
+        flash("Your account has been suspended.")
+        return redirect(url_for("login"))
 
     cursor.execute(
         "SELECT id, vehicle, call_number, token FROM vehicles WHERE user_id = %s",
@@ -317,16 +296,6 @@ def add_vehicle():
         conn.close()
         return redirect(url_for("dashboard"))
 
-    cursor.execute(
-        "SELECT id FROM vehicles WHERE vehicle = %s",
-        (vehicle,)
-    )
-    if cursor.fetchone():
-        flash("Vehicle already registered.")
-        cursor.close()
-        conn.close()
-        return redirect(url_for("dashboard"))
-
     token = secrets.token_urlsafe(6)
 
     cursor.execute(
@@ -352,6 +321,7 @@ def add_vehicle():
 @app.route("/delete/<int:vehicle_id>")
 @login_required
 def delete_vehicle(vehicle_id):
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -369,18 +339,22 @@ def delete_vehicle(vehicle_id):
 
 
 # ==============================
-# Contact Route
+# Contact Route (QR Protection)
 # ==============================
 
 @app.route("/v/<token>")
 def contact(token):
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT vehicle, call_number, whatsapp_number FROM vehicles WHERE token = %s",
-        (token,)
-    )
+    cursor.execute("""
+        SELECT v.vehicle, v.call_number, v.whatsapp_number, u.is_blocked
+        FROM vehicles v
+        JOIN users u ON v.user_id = u.id
+        WHERE v.token = %s
+    """, (token,))
+
     data = cursor.fetchone()
 
     cursor.close()
@@ -389,7 +363,10 @@ def contact(token):
     if not data:
         return "Invalid or expired QR code."
 
-    vehicle, call_number, whatsapp_number = data
+    vehicle, call_number, whatsapp_number, is_blocked = data
+
+    if is_blocked:
+        return "<h2>Account Suspended</h2><p>This SecurePark account is currently inactive.</p>"
 
     return render_template(
         "contact.html",
@@ -398,46 +375,6 @@ def contact(token):
         whatsapp_number=whatsapp_number
     )
 
-
-# ==============================
-# Sticker Route
-# ==============================
-
-@app.route("/sticker/<token>")
-@login_required
-def sticker(token):
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT vehicle FROM vehicles WHERE token = %s AND user_id = %s",
-        (token, current_user.id)
-    )
-    data = cursor.fetchone()
-
-    cursor.close()
-    conn.close()
-
-    if not data:
-        return "Unauthorized", 403
-
-    vehicle = data[0]
-
-    qr_url = request.host_url + "v/" + token
-    qr = qrcode.make(qr_url)
-
-    buffer = BytesIO()
-    qr.save(buffer, format="PNG")
-    buffer.seek(0)
-
-    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
-
-    return render_template(
-        "qr_result.html",
-        vehicle=vehicle,
-        qr_image=qr_base64
-    )
 
 if __name__ == "__main__":
     app.run(debug=True)

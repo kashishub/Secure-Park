@@ -56,10 +56,7 @@
         }
 
         .logout-btn { background: #444; color: white; }
-        .logout-btn:hover { opacity: 0.85; }
-
         .delete-account-btn { background: #d00000; color: white; }
-        .delete-account-btn:hover { opacity: 0.85; }
 
         input {
             width: 100%;
@@ -241,17 +238,22 @@
 
 </div>
 
-<!-- DELETE CONFIRM MODAL -->
+<!-- DELETE ACCOUNT MODAL -->
 <div id="deleteModal" class="modal">
     <div class="modal-content">
         <h3>Confirm Account Deletion</h3>
         <p>This action cannot be undone.</p>
 
-        <a href="{{ url_for('delete_account') }}">
-            <button class="btn confirm-btn">Yes, Delete</button>
-        </a>
+        <!-- ✅ IMPORTANT: POST form instead of link -->
+        <form method="POST" action="{{ url_for('delete_account') }}">
+            <button type="submit" class="btn confirm-btn">
+                Yes, Delete
+            </button>
+        </form>
 
-        <button class="btn cancel-btn" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn cancel-btn" onclick="closeDeleteModal()">
+            Cancel
+        </button>
     </div>
 </div>
 
