@@ -374,9 +374,13 @@ def contact(token):
 @login_required
 def admin_dashboard():
 
+    # Only admin allowed
     if current_user.role != "admin":
         return redirect(url_for("dashboard"))
 
+    # ==========================
+    # Filters & Pagination
+    # ==========================
     search = request.args.get("search", "")
     role_filter = request.args.get("role", "all")
     status_filter = request.args.get("status", "all")
@@ -388,6 +392,9 @@ def admin_dashboard():
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # ==========================
+    # Base Query (for filters)
+    # ==========================
     base_query = """
     FROM users u
     LEFT JOIN vehicles v ON u.id = v.user_id
@@ -409,27 +416,50 @@ def admin_dashboard():
     elif status_filter == "blocked":
         base_query += " AND u.is_blocked = TRUE"
 
-    # Total count (for pagination)
+    # ==========================
+    # Pagination Count (Filtered)
+    # ==========================
     count_query = "SELECT COUNT(DISTINCT u.id) " + base_query
     cursor.execute(count_query, params)
-    total_users = cursor.fetchone()[0]
+    filtered_user_count = cursor.fetchone()[0]
 
-    # Main query
+    # ==========================
+    # Main Users Query
+    # ==========================
     data_query = """
-    SELECT u.id, u.email, u.role, u.is_blocked, u.created_at,
-           COUNT(v.id) as vehicle_count
+    SELECT 
+        u.id,
+        u.email,
+        u.role,
+        u.is_blocked,
+        u.created_at,
+        COUNT(v.id) as vehicle_count
     """ + base_query + """
     GROUP BY u.id
     ORDER BY u.id DESC
     LIMIT %s OFFSET %s
     """
 
-    params.extend([per_page, offset])
-    cursor.execute(data_query, params)
+    data_params = params + [per_page, offset]
+
+    cursor.execute(data_query, data_params)
     users = cursor.fetchall()
 
-    # ===== Stats Cards Data =====
+    # ==========================
+    # Admin's Own Vehicles (TOP SECTION)
+    # ==========================
+    cursor.execute("""
+        SELECT id, vehicle, call_number, token
+        FROM vehicles
+        WHERE user_id = %s
+        ORDER BY id DESC
+    """, (current_user.id,))
 
+    admin_vehicles = cursor.fetchall()
+
+    # ==========================
+    # Stats Cards (GLOBAL DATA)
+    # ==========================
     cursor.execute("SELECT COUNT(*) FROM users")
     total_users = cursor.fetchone()[0]
 
@@ -445,11 +475,15 @@ def admin_dashboard():
     cursor.close()
     conn.close()
 
-    total_pages = (total_users + per_page - 1) // per_page
+    # ==========================
+    # Pagination Calculation
+    # ==========================
+    total_pages = (filtered_user_count + per_page - 1) // per_page
 
     return render_template(
         "admin_dashboard.html",
         users=users,
+        admin_vehicles=admin_vehicles,
         page=page,
         total_pages=total_pages,
         search=search,
