@@ -22,7 +22,16 @@ login_manager.login_view = "login"
 # ==============================
 
 def get_db_connection():
-    return psycopg2.connect(os.environ.get("DATABASE_URL"))
+    database_url = os.environ.get("DATABASE_URL")
+
+    if not database_url:
+        raise RuntimeError("DATABASE_URL is not set")
+
+    if "sslmode=" not in database_url:
+        separator = "&" if "?" in database_url else "?"
+        database_url = f"{database_url}{separator}sslmode=require"
+
+    return psycopg2.connect(database_url)
 
 
 # ==============================
@@ -39,17 +48,27 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, email, password, role FROM users WHERE id = %s",
-        (user_id,)
-    )
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    if user:
-        return User(*user)
+    conn = None
+    cursor = None
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, email, password, role FROM users WHERE id = %s",
+            (user_id,)
+        )
+        user = cursor.fetchone()
+        if user:
+            return User(*user)
+    except (RuntimeError, psycopg2.Error):
+        return None
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
     return None
 
 
@@ -127,17 +146,25 @@ def login():
 
         email = email.strip().lower()
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        conn = None
+        cursor = None
 
-        cursor.execute(
-            "SELECT id, email, password, role, created_at, is_blocked FROM users WHERE email = %s",
-            (email,)
-        )
-        user = cursor.fetchone()
-
-        cursor.close()
-        conn.close()
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, email, password, role, created_at, is_blocked FROM users WHERE email = %s",
+                (email,)
+            )
+            user = cursor.fetchone()
+        except (RuntimeError, psycopg2.Error):
+            flash("Login is temporarily unavailable. Please try again shortly.")
+            return redirect(url_for("login"))
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
         if user and check_password_hash(user[2], password):
 
