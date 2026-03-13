@@ -1,15 +1,11 @@
 import os
 import secrets
-import json
+import psycopg2
 import base64
-from datetime import datetime, timezone
 from io import BytesIO
-
-import requests
-import firebase_admin
-from firebase_admin import credentials, firestore, auth
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 import qrcode
 
 
@@ -22,77 +18,11 @@ login_manager.login_view = "login"
 
 
 # ==============================
-# Firebase Initialization
+# Database Connection
 # ==============================
 
-def init_firebase_app():
-    if firebase_admin._apps:
-        return
-
-    credentials_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
-    credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-
-    if credentials_json:
-        cert = credentials.Certificate(json.loads(credentials_json))
-        firebase_admin.initialize_app(cert)
-        return
-
-    if credentials_path:
-        cert = credentials.Certificate(credentials_path)
-        firebase_admin.initialize_app(cert)
-        return
-
-    firebase_admin.initialize_app()
-
-
-init_firebase_app()
-db = firestore.client()
-
-
-def firebase_sign_in(email, password):
-    api_key = os.environ.get("FIREBASE_WEB_API_KEY")
-    if not api_key:
-        raise RuntimeError("FIREBASE_WEB_API_KEY is not configured")
-
-    endpoint = (
-        "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
-        f"?key={api_key}"
-    )
-
-    response = requests.post(
-        endpoint,
-        json={
-            "email": email,
-            "password": password,
-            "returnSecureToken": True,
-        },
-        timeout=15,
-    )
-
-    if response.status_code != 200:
-        return None
-
-    return response.json()
-
-
-def format_timestamp(value):
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    return "-"
-
-
-def is_user_blocked(user_data):
-    return bool(user_data.get("isBlocked") or user_data.get("is_blocked"))
-
-
-def generate_unique_token():
-    while True:
-        token = secrets.token_urlsafe(6)
-        token_query = db.collection("vehicles").where("token", "==", token).limit(1).stream()
-        if next(token_query, None) is None:
-            return token
+def get_db_connection():
+    return psycopg2.connect(os.environ.get("DATABASE_URL"))
 
 
 # ==============================
@@ -100,24 +30,26 @@ def generate_unique_token():
 # ==============================
 
 class User(UserMixin):
-    def __init__(self, id, email, role, is_blocked=False):
+    def __init__(self, id, email, password, role):
         self.id = id
         self.email = email
+        self.password = password
         self.role = role
-        self.is_blocked = is_blocked
 
 
 @login_manager.user_loader
 def load_user(user_id):
-    user_doc = db.collection("users").document(str(user_id)).get()
-    if user_doc.exists:
-        data = user_doc.to_dict() or {}
-        return User(
-            id=str(user_doc.id),
-            email=data.get("email", ""),
-            role=data.get("role", "owner"),
-            is_blocked=is_user_blocked(data),
-        )
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, email, password, role FROM users WHERE id = %s",
+        (user_id,)
+    )
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if user:
+        return User(*user)
     return None
 
 
@@ -151,35 +83,26 @@ def register_user():
             return redirect(url_for("register_user"))
 
         email = email.strip().lower()
+        hashed_password = generate_password_hash(password)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
         try:
-            existing_user = auth.get_user_by_email(email)
-            if existing_user:
-                flash("Email already registered.")
-                return redirect(url_for("register_user"))
-        except auth.UserNotFoundError:
-            pass
-
-        try:
-            created_user = auth.create_user(
-                email=email,
-                password=password,
+            cursor.execute(
+                "INSERT INTO users (email, password) VALUES (%s, %s)",
+                (email, hashed_password)
             )
-
-            db.collection("users").document(created_user.uid).set(
-                {
-                    "uid": created_user.uid,
-                    "name": email.split("@")[0],
-                    "email": email,
-                    "phone": "",
-                    "role": "owner",
-                    "isBlocked": False,
-                    "createdAt": firestore.SERVER_TIMESTAMP,
-                }
-            )
-        except Exception:
+            conn.commit()
+        except psycopg2.Error:
+            conn.rollback()
             flash("Email already registered.")
+            cursor.close()
+            conn.close()
             return redirect(url_for("register_user"))
+
+        cursor.close()
+        conn.close()
 
         flash("Account created. Please login.")
         return redirect(url_for("login"))
@@ -204,50 +127,33 @@ def login():
 
         email = email.strip().lower()
 
-        sign_in_data = firebase_sign_in(email, password)
-        if sign_in_data:
-            user_id = sign_in_data.get("localId")
-            user_doc = db.collection("users").document(user_id).get()
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-            if not user_doc.exists:
-                firebase_user = auth.get_user(user_id)
-                db.collection("users").document(user_id).set(
-                    {
-                        "uid": user_id,
-                        "name": firebase_user.display_name or email.split("@")[0],
-                        "email": firebase_user.email or email,
-                        "phone": firebase_user.phone_number or "",
-                        "role": "owner",
-                        "isBlocked": False,
-                        "createdAt": firestore.SERVER_TIMESTAMP,
-                    },
-                    merge=True,
-                )
-                user_data = {
-                    "email": email,
-                    "role": "owner",
-                    "isBlocked": False,
-                }
-            else:
-                user_data = user_doc.to_dict() or {}
+        cursor.execute(
+            "SELECT id, email, password, role, created_at, is_blocked FROM users WHERE email = %s",
+            (email,)
+        )
+        user = cursor.fetchone()
 
-            if is_user_blocked(user_data):
+        cursor.close()
+        conn.close()
+
+        if user and check_password_hash(user[2], password):
+
+            user_id, user_email, password_hash, role, created_at, is_blocked = user
+
+            if is_blocked:
                 flash("Your account has been suspended.")
                 return redirect(url_for("login"))
 
-            role = user_data.get("role", "owner")
-            login_user(
-                User(
-                    id=user_id,
-                    email=user_data.get("email", email),
-                    role=role,
-                    is_blocked=False,
-                )
-            )
+            login_user(User(user_id, user_email, password_hash, role))
 
+            # 🔥 Role-based redirect
             if role == "admin":
                 return redirect(url_for("admin_dashboard"))
-            return redirect(url_for("dashboard"))
+            else:
+                return redirect(url_for("dashboard"))
 
         flash("Invalid email or password.")
         return redirect(url_for("login"))
@@ -273,19 +179,15 @@ def logout():
 @app.route("/delete-account", methods=["POST"])
 @login_required
 def delete_account():
-    user_id = str(current_user.id)
-
-    vehicle_docs = db.collection("vehicles").where("userId", "==", user_id).stream()
-    for doc in vehicle_docs:
-        doc.reference.delete()
-
-    db.collection("users").document(user_id).delete()
-
-    try:
-        auth.delete_user(user_id)
-    except Exception:
-        pass
-
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM users WHERE id = %s",
+        (current_user.id,)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
     logout_user()
     flash("Your account has been deleted.")
     return redirect(url_for("login"))
@@ -298,26 +200,30 @@ def delete_account():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    user_id = str(current_user.id)
-    vehicles = db.collection("vehicles").where("userId", "==", user_id).stream()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT id, vehicle, call_number, token FROM vehicles WHERE user_id = %s",
+        (current_user.id,)
+    )
+    vehicles = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
 
     vehicle_list = []
 
     for v in vehicles:
-        data = v.to_dict() or {}
+        vehicle_id, vehicle_number, call_number, token = v
 
         vehicle_list.append({
-            "id": v.id,
-            "vehicle": data.get("vehicleNumber", ""),
-            "call_number": data.get("callNumber", ""),
-            "token": data.get("token", ""),
-            "created_at": data.get("createdAt"),
+            "id": vehicle_id,
+            "vehicle": vehicle_number,
+            "call_number": call_number,
+            "token": token
         })
-
-    vehicle_list.sort(
-        key=lambda item: item.get("created_at") or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
-    )
 
     return render_template("dashboard.html", vehicles=vehicle_list)
 
@@ -343,18 +249,22 @@ def add_vehicle():
     if not whatsapp_number:
         whatsapp_number = call_number
 
-    token = generate_unique_token()
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-    db.collection("vehicles").add(
-        {
-            "userId": str(current_user.id),
-            "vehicleNumber": vehicle,
-            "callNumber": call_number,
-            "whatsappNumber": whatsapp_number,
-            "token": token,
-            "createdAt": firestore.SERVER_TIMESTAMP,
-        }
+    token = secrets.token_urlsafe(6)
+
+    cursor.execute(
+        """
+        INSERT INTO vehicles (vehicle, call_number, whatsapp_number, token, user_id)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (vehicle, call_number, whatsapp_number, token, current_user.id)
     )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     flash("Vehicle added successfully.")
     return redirect(url_for("dashboard"))
@@ -363,16 +273,21 @@ def add_vehicle():
 # Delete Vehicle
 # ==============================
 
-@app.route("/delete/<vehicle_id>")
+@app.route("/delete/<int:vehicle_id>")
 @login_required
 def delete_vehicle(vehicle_id):
-    vehicle_ref = db.collection("vehicles").document(vehicle_id)
-    vehicle_doc = vehicle_ref.get()
 
-    if vehicle_doc.exists:
-        data = vehicle_doc.to_dict() or {}
-        if data.get("userId") == str(current_user.id):
-            vehicle_ref.delete()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "DELETE FROM vehicles WHERE id = %s AND user_id = %s",
+        (vehicle_id, current_user.id)
+    )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     flash("Vehicle deleted.")
     return redirect(url_for("dashboard"))
@@ -384,19 +299,23 @@ def delete_vehicle(vehicle_id):
 @app.route("/sticker/<token>")
 @login_required
 def sticker(token):
-    vehicle_docs = db.collection("vehicles") \
-        .where("token", "==", token) \
-        .where("userId", "==", str(current_user.id)) \
-        .limit(1) \
-        .stream()
 
-    vehicle_doc = next(vehicle_docs, None)
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-    if not vehicle_doc:
+    cursor.execute(
+        "SELECT vehicle FROM vehicles WHERE token = %s AND user_id = %s",
+        (token, current_user.id)
+    )
+    data = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if not data:
         return "Unauthorized or Invalid Token", 403
 
-    vehicle_data = vehicle_doc.to_dict() or {}
-    vehicle = vehicle_data.get("vehicleNumber", "")
+    vehicle = data[0]
 
     qr_url = request.host_url + "v/" + token
     qr = qrcode.make(qr_url)
@@ -420,16 +339,25 @@ def sticker(token):
 
 @app.route("/v/<token>")
 def contact(token):
-    vehicle_docs = db.collection("vehicles").where("token", "==", token).limit(1).stream()
-    vehicle_doc = next(vehicle_docs, None)
 
-    if not vehicle_doc:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT v.vehicle, v.call_number, v.whatsapp_number
+        FROM vehicles v
+        WHERE v.token = %s
+    """, (token,))
+
+    data = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if not data:
         return "Invalid or expired QR code."
 
-    data = vehicle_doc.to_dict() or {}
-    vehicle = data.get("vehicleNumber", "")
-    call_number = data.get("callNumber", "")
-    whatsapp_number = data.get("whatsappNumber") or call_number
+    vehicle, call_number, whatsapp_number = data
 
     return render_template(
         "contact.html",
@@ -450,6 +378,9 @@ def admin_dashboard():
     if current_user.role != "admin":
         return redirect(url_for("dashboard"))
 
+    # ==========================
+    # Filters & Pagination
+    # ==========================
     search = request.args.get("search", "")
     role_filter = request.args.get("role", "all")
     status_filter = request.args.get("status", "all")
@@ -458,71 +389,95 @@ def admin_dashboard():
     per_page = 5
     offset = (page - 1) * per_page
 
-    all_user_docs = list(db.collection("users").stream())
-    all_vehicle_docs = list(db.collection("vehicles").stream())
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-    vehicle_count_by_user = {}
-    for vehicle_doc in all_vehicle_docs:
-        vehicle_data = vehicle_doc.to_dict() or {}
-        owner_id = vehicle_data.get("userId")
-        if owner_id:
-            vehicle_count_by_user[owner_id] = vehicle_count_by_user.get(owner_id, 0) + 1
+    # ==========================
+    # Base Query (for filters)
+    # ==========================
+    base_query = """
+    FROM users u
+    LEFT JOIN vehicles v ON u.id = v.user_id
+    WHERE 1=1
+    """
 
-    filtered_users = []
-    for user_doc in all_user_docs:
-        user_data = user_doc.to_dict() or {}
+    params = []
 
-        email = (user_data.get("email") or "").strip().lower()
-        role = user_data.get("role", "owner")
-        blocked = is_user_blocked(user_data)
+    if search:
+        base_query += " AND u.email ILIKE %s"
+        params.append(f"%{search}%")
 
-        if search and search.lower() not in email:
-            continue
+    if role_filter != "all":
+        base_query += " AND u.role = %s"
+        params.append(role_filter)
 
-        if role_filter != "all" and role != role_filter:
-            continue
+    if status_filter == "active":
+        base_query += " AND u.is_blocked = FALSE"
+    elif status_filter == "blocked":
+        base_query += " AND u.is_blocked = TRUE"
 
-        if status_filter == "active" and blocked:
-            continue
-        if status_filter == "blocked" and not blocked:
-            continue
+    # ==========================
+    # Pagination Count (Filtered)
+    # ==========================
+    count_query = "SELECT COUNT(DISTINCT u.id) " + base_query
+    cursor.execute(count_query, params)
+    filtered_user_count = cursor.fetchone()[0]
 
-        filtered_users.append(
-            (
-                user_doc.id,
-                email,
-                role,
-                blocked,
-                format_timestamp(user_data.get("createdAt")),
-                vehicle_count_by_user.get(user_doc.id, 0),
-            )
-        )
+    # ==========================
+    # Main Users Query
+    # ==========================
+    data_query = """
+    SELECT 
+        u.id,
+        u.email,
+        u.role,
+        u.is_blocked,
+        u.created_at,
+        COUNT(v.id) as vehicle_count
+    """ + base_query + """
+    GROUP BY u.id
+    ORDER BY u.id DESC
+    LIMIT %s OFFSET %s
+    """
 
-    filtered_users.sort(key=lambda row: row[4], reverse=True)
+    data_params = params + [per_page, offset]
 
-    filtered_user_count = len(filtered_users)
-    users = filtered_users[offset:offset + per_page]
+    cursor.execute(data_query, data_params)
+    users = cursor.fetchall()
 
-    admin_vehicles = []
-    for vehicle_doc in all_vehicle_docs:
-        vehicle_data = vehicle_doc.to_dict() or {}
-        if vehicle_data.get("userId") == str(current_user.id):
-            admin_vehicles.append(
-                (
-                    vehicle_doc.id,
-                    vehicle_data.get("vehicleNumber", ""),
-                    vehicle_data.get("callNumber", ""),
-                    vehicle_data.get("token", ""),
-                )
-            )
+    # ==========================
+    # Admin's Own Vehicles (TOP SECTION)
+    # ==========================
+    cursor.execute("""
+        SELECT id, vehicle, call_number, token
+        FROM vehicles
+        WHERE user_id = %s
+        ORDER BY id DESC
+    """, (current_user.id,))
 
-    total_users = len(all_user_docs)
-    blocked_users = sum(
-        1 for user_doc in all_user_docs if is_user_blocked(user_doc.to_dict() or {})
-    )
-    active_users = total_users - blocked_users
-    total_vehicles = len(all_vehicle_docs)
+    admin_vehicles = cursor.fetchall()
 
+    # ==========================
+    # Stats Cards (GLOBAL DATA)
+    # ==========================
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM users WHERE is_blocked = FALSE")
+    active_users = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM users WHERE is_blocked = TRUE")
+    blocked_users = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM vehicles")
+    total_vehicles = cursor.fetchone()[0]
+
+    cursor.close()
+    conn.close()
+
+    # ==========================
+    # Pagination Calculation
+    # ==========================
     total_pages = (filtered_user_count + per_page - 1) // per_page
 
     return render_template(
@@ -544,7 +499,7 @@ def admin_dashboard():
 # Block / Unblock Route 
 # ==============================
 
-@app.route("/admin/toggle-block/<user_id>")
+@app.route("/admin/toggle-block/<int:user_id>")
 @login_required
 def toggle_block(user_id):
 
@@ -552,19 +507,25 @@ def toggle_block(user_id):
         flash("Access denied.")
         return redirect(url_for("dashboard"))
 
-    if str(user_id) == str(current_user.id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # prevent admin blocking themselves
+    if user_id == current_user.id:
         flash("You cannot block yourself.")
+        cursor.close()
+        conn.close()
         return redirect(url_for("admin_dashboard"))
 
-    user_ref = db.collection("users").document(str(user_id))
-    user_doc = user_ref.get()
-    if not user_doc.exists:
-        flash("User not found.")
-        return redirect(url_for("admin_dashboard"))
+    cursor.execute("""
+        UPDATE users
+        SET is_blocked = NOT is_blocked
+        WHERE id = %s
+    """, (user_id,))
 
-    user_data = user_doc.to_dict() or {}
-    blocked = is_user_blocked(user_data)
-    user_ref.set({"isBlocked": not blocked}, merge=True)
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     flash("User status updated.")
     return redirect(url_for("admin_dashboard"))
@@ -572,7 +533,7 @@ def toggle_block(user_id):
 # ==============================
 # Transfer Admin Route 
 # ==============================
-@app.route("/admin/transfer/<user_id>")
+@app.route("/admin/transfer/<int:user_id>")
 @login_required
 def transfer_admin(user_id):
 
@@ -580,19 +541,28 @@ def transfer_admin(user_id):
         flash("Access denied.")
         return redirect(url_for("dashboard"))
 
-    if str(user_id) == str(current_user.id):
+    if user_id == current_user.id:
         flash("You are already admin.")
         return redirect(url_for("admin_dashboard"))
 
-    target_ref = db.collection("users").document(str(user_id))
-    target_doc = target_ref.get()
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-    if not target_doc.exists:
-        flash("Target user not found.")
-        return redirect(url_for("admin_dashboard"))
+    # Make selected user admin
+    cursor.execute(
+        "UPDATE users SET role = 'admin' WHERE id = %s",
+        (user_id,)
+    )
 
-    target_ref.set({"role": "admin"}, merge=True)
-    db.collection("users").document(str(current_user.id)).set({"role": "owner"}, merge=True)
+    # Make current admin owner
+    cursor.execute(
+        "UPDATE users SET role = 'owner' WHERE id = %s",
+        (current_user.id,)
+    )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     flash("Admin ownership transferred successfully.")
     return redirect(url_for("logout"))
