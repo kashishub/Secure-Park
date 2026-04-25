@@ -250,21 +250,6 @@ These features will make SecurePark more powerful than a simple QR system.
 
 ---
 
-# Screenshots
-
-Add your project screenshots here:
-
-* Login Screen
-* Registration Screen
-* Dashboard
-* Add Vehicle Screen
-* QR Sticker Screen
-* QR Scanner Screen
-* Contact Screen
-* Admin Panel
-
----
-
 # Author
 
 ## Kashish
