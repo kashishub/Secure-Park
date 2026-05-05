@@ -15,7 +15,7 @@ This project is designed as both a practical real-world parking solution and an 
 | Platform       | Link                                                                                                                                                               |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 🌐 Web App     | [https://park-13c37.web.app/](https://park-13c37.web.app/)                                                                                                         |
-| 📱 Android APK | [https://github.com/kashishub/Secure-Park/releases/download/v1.0/secure-park.apk](https://github.com/kashishub/Secure-Park/releases/download/v1.0/secure-park.apk) |
+| 📱 Android APK | [https://github.com/kashishub/Secure-Park/releases/download/v1.0/secure-park.apk](https://github.com/kashishub/Secure-Park/releases/download/v1.1/SecurePark.apk) |
 
 ---
 
